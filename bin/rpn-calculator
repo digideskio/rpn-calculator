@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+
+require_relative '../rpn_calculator'
+
+calculator = RpnCalculator.new
+calculator.start_repl
