@@ -1,1 +1,7 @@
 notes.org
+.bundle
+.ruby-version
+.rspec
+
+bin/
+!bin/rpn-calculator
