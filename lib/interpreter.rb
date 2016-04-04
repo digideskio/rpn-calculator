@@ -1,5 +1,5 @@
 class Interpreter
-  attr_accessor :current_char, :current_position, :input
+  attr_accessor :current_char, :current_position, :input, :operand_stack
 
   # Include unicode operators in case expressions are copy-pasted from somewhere
   # that is using actual minus signs instead of hyphens, for example.
@@ -34,7 +34,7 @@ class Interpreter
       if OPERATORS.include?(@current_char)
         if negative_number?
           next_char
-          operand = number(negative: true)
+          operand = to_number(character: @current_char, negative: true)
           @operand_stack.push(operand)
         elsif @operand_stack.length > 1
           operand_2 = @operand_stack.pop
@@ -42,41 +42,35 @@ class Interpreter
           begin
             result = calculate(operand_1, operand_2, @current_char)
           rescue ZeroDivisionError => e
-            puts "Error: #{e}"
-            puts "Aborting calculation and resettting stack."
+            log_error(e.message)
             abort_eval && break
           end
 
           @operand_stack.push(result)
         end
+      elsif numeric?(@current_char)
+        @operand_stack.push(to_number(character: @current_char))
       else
-        @operand_stack.push(number)
+        # We've encounter a character that isn't an operator
+        # and cannot be interpreted as a number, so we're going
+        # to abort our evaluation.
+        log_error("Unsupported operand \"#{@current_char}\"")
+        abort_eval && break
       end
 
       next_char
     end
 
+    # Return the top of stack without popping it off
     @operand_stack.last
   end
 
-  # Instead of encoding the negativeness of a number in this method,
-  # it should probably be part of another class, maybe 'Token'.
-  def number(negative: false)
-    result = ''
-    result << '-' if negative
+  def input=(new_input)
+    reset_input(new_input)
+  end
 
-    while !@current_char.nil? && (numeric?(@current_char) || @current_char == '.')
-      result << @current_char
-      next_char
-    end
-
-    begin
-      return Integer(result)
-    rescue ArgumentError
-      return Float(result)
-    rescue ArgumentError
-      raise StandardError, 'Invalid number'
-    end
+  def log_error(error)
+    puts "Error: #{error}"
   end
 
   private
@@ -87,11 +81,11 @@ class Interpreter
   end
 
   def update_current_character
-    if @current_position >= @input.length
-      @current_char = END_OF_INPUT
-    else
-      @current_char = @input[@current_position]
-    end
+    @current_char = if @current_position >= @input.length
+                      END_OF_INPUT
+                    else
+                      @input[@current_position]
+                    end
   end
 
   # This might be overkill, but I ran into an issue with unicode
@@ -107,13 +101,49 @@ class Interpreter
     elsif TOKEN_SUB.include?(operator)
       operator = :-
     elsif TOKEN_DIVIDE.include?(operator)
-      raise ZeroDivisionError, 'Attempted to divide by zero!' if op2 == 0
-      operator = :/
+      raise ZeroDivisionError, 'Attempted to divide by zero! Aborting calculation and resetting stack.' if op2 == 0
+      operator = correct_division_operator(op1, op2)
     elsif TOKEN_MULTIPLY.include?(operator)
       operator = :*
     end
 
     op1.send(operator, op2)
+  end
+
+  # If the first operand is evenly divisible by the second,
+  # do integer division. Otherwise, or if we're already dealing
+  # with floats, do floating point division.
+  def correct_division_operator(op1, op2)
+    is_float = [op1, op2].any? { |operand| operand.is_a? Float }
+    not_evenly_divisible = (op1 % op2 != 0)
+    if is_float || not_evenly_divisible
+      return :fdiv
+    else
+      return :/
+    end
+  end
+
+  # Instead of encoding the negativeness of a number in this method,
+  # it should probably be part of another class, such as 'Token'.
+  def to_number(character:, negative: false)
+    result = ''
+    result << '-' if negative
+
+    while !character.nil? && (numeric?(character) || character == '.')
+      result << character
+      character = next_char
+    end
+
+    # Regular expressions would be an alternative to using exceptions
+    # as control flow, which is normally a code smell. From searches done
+    # online, rescuing a failed cast seems to be the somewhat canonical way
+    # to check if a string is an Integer or Float in ruby.
+    # TODO: If we somehow fail to cast as a Float, this will crash.
+    begin
+      return Integer(result)
+    rescue ArgumentError
+      return Float(result)
+    end
   end
 
   # Check if the given value is the start of a negative number
@@ -146,7 +176,7 @@ class Interpreter
   end
 
   def reset_input(input)
-    self.input = input
+    @input = input
     self.current_position = 0
     self.current_char = @input[@current_position]
   end
