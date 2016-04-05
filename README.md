@@ -1,7 +1,7 @@
 A simple Reverse Polish Notation calculator written in Ruby.
 
 # Installation
-This library requires Ruby 2.0 or greater to run.
+This library requires Ruby 2.1 or greater to run.
 
 * Clone the repository
 * Run `gem build rpn_calculator.gemspec`. This will create a file called `rpn_calculator-0.0.1.gem`.
@@ -44,7 +44,7 @@ To exit the calculator's REPL, enter either `q` or press `Ctrl-d`.
 Decimal must be 0 prefixed.
 
     0.9 => Will work
-    .9  => Will not work
+     .9 => Will not work
 
 # Running tests
 * Clone the repository and run `bundle install`
